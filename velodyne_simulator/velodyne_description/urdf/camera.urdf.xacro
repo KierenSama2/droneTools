@@ -1,0 +1,112 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="camera">
+  <xacro:property name="M_PI" value="3.1415926535897931"/>
+  <xacro:property name="M_PI2" value="1.5707963267948966"/>
+
+<xacro:macro
+  name="camera"
+  params="*origin parent:=base_link name:=camera topic:=/camera1/image_raw ">
+<xacro:property name="camera_link" value="0.05"/>
+
+  <joint name="${name}_joint" type="fixed">
+    <axis xyz="0 1 0"/>
+    <origin xyz="${camera_link} 0 1" rpy="0 -${M_PI2} 0"/>
+    <parent link="${parent}"/>
+    <child link="camera_link"/>
+  </joint>
+
+  <!-- Camera -->
+  <link name="camera_link">
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${camera_link} ${camera_link} ${camera_link}"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${camera_link} ${camera_link} ${camera_link}"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+
+    <inertial>
+      <mass value="1e-5"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <!-- generate an optical frame http://www.ros.org/reps/rep-0103.html#suffix-frames so that ros and opencv can operate on the camera frame correctly -->
+  <joint name="camera_optical_joint" type="fixed">
+    <!-- these values have to be these values otherwise the gazebo camera image won't be aligned properly with the frame it is supposedly originating from -->
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="camera_link"/>
+    <child link="camera_link_optical"/>
+  </joint>
+
+  <link name="camera_link_optical"></link>
+
+  <!-- camera -->
+  <gazebo reference="camera_link">
+    <sensor type="wideanglecamera" name="camera1">
+      <update_rate>30.0</update_rate>
+      <camera name="head">
+        <horizontal_fov>3.0</horizontal_fov>
+        <image>
+          <width>2448</width>
+          <height>2048</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.02</near>
+          <far>300</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <!-- Noise is sampled independently per pixel on each frame. That pixel's noise value is added to each of its color channels, which at that point lie in the range [0,1]. -->
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+        <lens>
+          <!-- type element is mandatory -->
+          <type>custom</type>
+          <!-- manually defined mapping function r = c1*f*fun(theta/c2 + c3) -->
+          <!-- More information here: https://en.wikipedia.org/wiki/Fisheye_lens#Mapping_function -->
+          <custom_function>
+            <c1>1.05</c1>
+            <!-- linear scaling -->
+            <c2>4</c2>
+            <!-- angle scaling -->
+            <f>1.0</f>
+            <!-- one more scaling parameter -->
+            <fun>tan</fun>
+            <!-- one of sin,tan,id -->
+          </custom_function>
+          <!-- if it is set to `true` your horizontal FOV will ramain as defined -->
+          <!-- othervise it depends on lens type and custom function, if there is one -->
+          <scale_to_hfov>true</scale_to_hfov>
+          <!-- clip everything that is outside of this angle -->
+          <cutoff_angle>3.1415</cutoff_angle>
+          <!-- resolution of the cubemap texture, the highter it is - the sharper is your image -->
+          <env_texture_size>512</env_texture_size>
+        </lens>
+        <always_on>1</always_on>
+      </camera>
+      <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+        <alwaysOn>true</alwaysOn>
+        <updateRate>0.0</updateRate>
+        <cameraName>camera1</cameraName>
+        <imageTopicName>image_raw</imageTopicName>
+        <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+        <frameName>camera_link_optical</frameName>
+        <!-- setting hackBaseline to anything but 0.0 will cause a misalignment between the gazebo sensor image and the frame it is supposed to be attached to -->
+        <!--hackBaseline>0.0</hackBaseline> <distortionK1>2.0</distortionK1> <distortionK2>2.0</distortionK2> <distortionK3>0.0</distortionK3> <distortionT1>0.0</distortionT1> <distortionT2>0.0</distortionT2> <CxPrime>0</CxPrime> <Cx>0.0</Cx> <Cy>0.0</Cy>
+        <focalLength>1788.0</focalLength-->
+      </plugin>
+    </sensor>
+  </gazebo>
+</xacro:macro>
+</robot>
